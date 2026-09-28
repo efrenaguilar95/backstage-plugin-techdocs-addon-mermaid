@@ -38,7 +38,7 @@ export function resolveIconPackUrl(packageOrUrl: string): string {
   return `https://unpkg.com/${path}`;
 }
 
-function readIconLoader(iconPackConfig: Config): IconLoader {
+export function readIconLoader(iconPackConfig: Config): IconLoader {
   const name = iconPackConfig.getString("name");
   const icons = iconPackConfig.getOptional<IconifyJSON>("icons");
   const pkg = iconPackConfig.getOptionalString("package");
@@ -69,10 +69,11 @@ function readIconLoader(iconPackConfig: Config): IconLoader {
 }
 
 /**
- * Reads Mermaid addon props from `techdocs.addons.mermaid` config.
+ * Wrapper that reads zoom configuration from app-config.yaml and forwards
+ * it as props to MermaidAddon.
  *
- * When `mermaidConfig` is undefined, an empty props object is returned —
- * preserving the original behaviour.
+ * When no `techdocs.addons.mermaid` config is present, MermaidAddon is
+ * rendered with no props — preserving the original behaviour.
  *
  * Supported app-config keys:
  *   techdocs.addons.mermaid.lightConfig             — MermaidConfig
@@ -81,49 +82,37 @@ function readIconLoader(iconPackConfig: Config): IconLoader {
  *   techdocs.addons.mermaid.enableZoom              — boolean (default: false)
  *   techdocs.addons.mermaid.zoomOptions.scaleExtent  — [min, max]
  *   techdocs.addons.mermaid.zoomOptions.translateExtent — [[xmin, ymin], [xmax, ymax]]
- *   techdocs.addons.mermaid.iconPacks                — [{ name, icons? , package? }]
- */
-export function readMermaidAddonProps(
-  mermaidConfig: Config | undefined,
-): MermaidProps {
-  const props: MermaidProps = {};
-
-  if (!mermaidConfig) {
-    return props;
-  }
-
-  props.lightConfig = mermaidConfig.getOptional<MermaidConfig>("lightConfig");
-  props.darkConfig = mermaidConfig.getOptional<MermaidConfig>("darkConfig");
-  props.config = mermaidConfig.getOptional<MermaidConfig>("config");
-  props.enableZoom = mermaidConfig.getOptionalBoolean("enableZoom") ?? false;
-
-  const zoomConfig = mermaidConfig.getOptionalConfig("zoomOptions");
-  if (zoomConfig) {
-    props.zoomOptions = {
-      scaleExtent: zoomConfig.getOptional<[number, number]>("scaleExtent"),
-      translateExtent: zoomConfig.getOptional<
-        [[number, number], [number, number]]
-      >("translateExtent"),
-    };
-  }
-
-  const iconPacksConfig = mermaidConfig.getOptionalConfigArray("iconPacks");
-  if (iconPacksConfig) {
-    props.iconLoaders = iconPacksConfig.map(readIconLoader);
-  }
-
-  return props;
-}
-
-/**
- * Wrapper that reads Mermaid configuration from app-config.yaml and
- * forwards it as props to MermaidAddon.
+ *   techdocs.addons.mermaid.iconPacks               — [{ name, icons? , package? }]
  */
 const ConfiguredMermaidAddon = () => {
   const config = useApi(configApiRef);
   const mermaidConfig = config.getOptionalConfig("techdocs.addons.mermaid");
 
-  return createElement(MermaidAddon, readMermaidAddonProps(mermaidConfig));
+  const props: MermaidProps = {};
+
+  if (mermaidConfig) {
+    props.lightConfig = mermaidConfig.getOptional<MermaidConfig>("lightConfig");
+    props.darkConfig = mermaidConfig.getOptional<MermaidConfig>("darkConfig");
+    props.config = mermaidConfig.getOptional<MermaidConfig>("config");
+    props.enableZoom = mermaidConfig.getOptionalBoolean("enableZoom") ?? false;
+
+    const zoomConfig = mermaidConfig.getOptionalConfig("zoomOptions");
+    if (zoomConfig) {
+      props.zoomOptions = {
+        scaleExtent: zoomConfig.getOptional<[number, number]>("scaleExtent"),
+        translateExtent: zoomConfig.getOptional<
+          [[number, number], [number, number]]
+        >("translateExtent"),
+      };
+    }
+
+    const iconPacksConfig = mermaidConfig.getOptionalConfigArray("iconPacks");
+    if (iconPacksConfig) {
+      props.iconLoaders = iconPacksConfig.map(readIconLoader);
+    }
+  }
+
+  return createElement(MermaidAddon, props);
 };
 
 const mermaidAddonParams: TechDocsAddonOptions = {

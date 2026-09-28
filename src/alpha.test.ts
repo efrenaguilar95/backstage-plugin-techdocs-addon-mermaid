@@ -14,165 +14,98 @@
  * limitations under the License.
  */
 import { ConfigReader, JsonObject } from '@backstage/config';
-import { readMermaidAddonProps, resolveIconPackUrl } from './alpha';
+import { readIconLoader, resolveIconPackUrl } from './alpha';
 
-function mermaidConfigFor(mermaid: JsonObject) {
-  return new ConfigReader({
-    techdocs: { addons: { mermaid } },
-  }).getOptionalConfig('techdocs.addons.mermaid');
+function iconPackConfigFor(iconPack: JsonObject) {
+  return new ConfigReader({ iconPack }).getConfig('iconPack');
 }
 
-describe('readMermaidAddonProps', () => {
-  it('returns an empty object when there is no mermaid config', () => {
-    expect(readMermaidAddonProps(undefined)).toEqual({});
-  });
+describe('readIconLoader', () => {
+  it('builds a sync icon loader for inline icons', () => {
+    const icons = {
+      prefix: 'custom',
+      icons: { 'my-icon': { body: '<path d="M0 0" />' } },
+    };
 
-  it('reads lightConfig, darkConfig, config, and zoom options', () => {
-    const props = readMermaidAddonProps(
-      mermaidConfigFor({
-        lightConfig: { theme: 'default' },
-        darkConfig: { theme: 'dark' },
-        config: { fontFamily: 'Arial' },
-        enableZoom: true,
-        zoomOptions: {
-          scaleExtent: [0.1, 10],
-          translateExtent: [
-            [-1000, -1000],
-            [1000, 1000],
-          ],
-        },
-      }),
+    const loader = readIconLoader(
+      iconPackConfigFor({ name: 'custom', icons }),
     );
 
-    expect(props).toEqual({
-      lightConfig: { theme: 'default' },
-      darkConfig: { theme: 'dark' },
-      config: { fontFamily: 'Arial' },
-      enableZoom: true,
-      zoomOptions: {
-        scaleExtent: [0.1, 10],
-        translateExtent: [
-          [-1000, -1000],
-          [1000, 1000],
-        ],
-      },
-    });
+    expect(loader).toEqual({ name: 'custom', icons });
   });
 
-  describe('iconPacks', () => {
-    it('is omitted when not configured', () => {
-      const props = readMermaidAddonProps(mermaidConfigFor({}));
+  it('throws when an entry specifies neither icons nor package', () => {
+    expect(() =>
+      readIconLoader(iconPackConfigFor({ name: 'custom' })),
+    ).toThrow(
+      'techdocs.addons.mermaid.iconPacks entry "custom" must specify either "icons" or "package"',
+    );
+  });
 
-      expect(props.iconLoaders).toBeUndefined();
+  describe('package-based icon loader', () => {
+    const icons = { prefix: 'logos', icons: {} };
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+      fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(icons),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
     });
 
-    it('builds a sync icon loader for inline icons', () => {
-      const icons = {
-        prefix: 'custom',
-        icons: { 'my-icon': { body: '<path d="M0 0" />' } },
-      };
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
 
-      const props = readMermaidAddonProps(
-        mermaidConfigFor({
-          iconPacks: [{ name: 'custom', icons }],
+    it('builds an async loader that fetches a bare package from unpkg', async () => {
+      const loader = readIconLoader(
+        iconPackConfigFor({ name: 'logos', package: '@iconify-json/logos' }),
+      );
+
+      expect(loader.name).toBe('logos');
+      expect('loader' in loader).toBe(true);
+
+      const result = await (
+        loader as { loader: () => Promise<unknown> }
+      ).loader();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://unpkg.com/@iconify-json/logos/icons.json',
+      );
+      expect(result).toEqual(icons);
+    });
+
+    it('fetches a full custom URL as-is', async () => {
+      const loader = readIconLoader(
+        iconPackConfigFor({
+          name: 'custom',
+          package: 'https://example.com/icons/custom.json',
         }),
-      );
+      ) as { loader: () => Promise<unknown> };
 
-      expect(props.iconLoaders).toEqual([{ name: 'custom', icons }]);
-    });
+      await loader.loader();
 
-    it('throws when an entry specifies neither icons nor package', () => {
-      expect(() =>
-        readMermaidAddonProps(
-          mermaidConfigFor({
-            iconPacks: [{ name: 'custom' }],
-          }),
-        ),
-      ).toThrow(
-        'techdocs.addons.mermaid.iconPacks entry "custom" must specify either "icons" or "package"',
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://example.com/icons/custom.json',
       );
     });
 
-    describe('package-based icon loader', () => {
-      const icons = { prefix: 'logos', icons: {} };
-      let fetchMock: jest.Mock;
-
-      beforeEach(() => {
-        fetchMock = jest.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(icons),
-        });
-        global.fetch = fetchMock as unknown as typeof fetch;
+    it('throws when the fetch response is not ok', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: () => Promise.resolve({}),
       });
 
-      afterEach(() => {
-        jest.restoreAllMocks();
-      });
+      const loader = readIconLoader(
+        iconPackConfigFor({ name: 'logos', package: '@iconify-json/logos' }),
+      ) as { loader: () => Promise<unknown> };
 
-      it('builds an async loader that fetches a bare package from unpkg', async () => {
-        const props = readMermaidAddonProps(
-          mermaidConfigFor({
-            iconPacks: [{ name: 'logos', package: '@iconify-json/logos' }],
-          }),
-        );
-
-        expect(props.iconLoaders).toHaveLength(1);
-        const [loader] = props.iconLoaders!;
-        expect(loader.name).toBe('logos');
-        expect('loader' in loader).toBe(true);
-
-        const result = await (loader as { loader: () => Promise<unknown> }).loader();
-
-        expect(fetchMock).toHaveBeenCalledWith(
-          'https://unpkg.com/@iconify-json/logos/icons.json',
-        );
-        expect(result).toEqual(icons);
-      });
-
-      it('fetches a full custom URL as-is', async () => {
-        const props = readMermaidAddonProps(
-          mermaidConfigFor({
-            iconPacks: [
-              {
-                name: 'custom',
-                package: 'https://example.com/icons/custom.json',
-              },
-            ],
-          }),
-        );
-
-        const [loader] = props.iconLoaders! as {
-          loader: () => Promise<unknown>;
-        }[];
-        await loader.loader();
-
-        expect(fetchMock).toHaveBeenCalledWith(
-          'https://example.com/icons/custom.json',
-        );
-      });
-
-      it('throws when the fetch response is not ok', async () => {
-        fetchMock.mockResolvedValue({
-          ok: false,
-          status: 404,
-          statusText: 'Not Found',
-          json: () => Promise.resolve({}),
-        });
-
-        const props = readMermaidAddonProps(
-          mermaidConfigFor({
-            iconPacks: [{ name: 'logos', package: '@iconify-json/logos' }],
-          }),
-        );
-
-        const [loader] = props.iconLoaders! as {
-          loader: () => Promise<unknown>;
-        }[];
-
-        await expect(loader.loader()).rejects.toThrow(
-          'Failed to load icon pack "logos" from https://unpkg.com/@iconify-json/logos/icons.json: 404 Not Found',
-        );
-      });
+      await expect(loader.loader()).rejects.toThrow(
+        'Failed to load icon pack "logos" from https://unpkg.com/@iconify-json/logos/icons.json: 404 Not Found',
+      );
     });
   });
 });
