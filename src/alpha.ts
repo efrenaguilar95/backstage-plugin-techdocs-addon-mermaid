@@ -75,13 +75,13 @@ function readIconLoader(iconPackConfig: Config): IconLoader {
  * preserving the original behaviour.
  *
  * Supported app-config keys:
- *   lightConfig                 — MermaidConfig
- *   darkConfig                  — MermaidConfig
- *   config                      — MermaidConfig
- *   enableZoom                  — boolean (default: false)
- *   zoomOptions.scaleExtent     — [min, max]
- *   zoomOptions.translateExtent — [[xmin, ymin], [xmax, ymax]]
- *   iconPacks                   — [{ name, icons? , package? }]
+ *   techdocs.addons.mermaid.lightConfig             — MermaidConfig
+ *   techdocs.addons.mermaid.darkConfig              — MermaidConfig
+ *   techdocs.addons.mermaid.config                  — MermaidConfig
+ *   techdocs.addons.mermaid.enableZoom              — boolean (default: false)
+ *   techdocs.addons.mermaid.zoomOptions.scaleExtent  — [min, max]
+ *   techdocs.addons.mermaid.zoomOptions.translateExtent — [[xmin, ymin], [xmax, ymax]]
+ *   techdocs.addons.mermaid.iconPacks                — [{ name, icons? , package? }]
  */
 export function readMermaidAddonProps(
   mermaidConfig: Config | undefined,
