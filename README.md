@@ -227,7 +227,7 @@ Pass `iconLoaders` directly as a prop, either with inline icons or an async load
 When using the new frontend system, icon packs are configured via `app-config.yaml` under the `techdocs.addons.mermaid.iconPacks` key. Each entry needs a `name` (the prefix used to reference its icons in diagrams) and either:
 
 - `icons` — an inline [Iconify JSON](https://iconify.design/docs/types/iconify-json.html) icon set, for small custom packs, or
-- `package` — the name of a published `@iconify-json/*` package (optionally with a subpath), or a full `http(s)://` URL. This is resolved against the [unpkg](https://unpkg.com) CDN and fetched as JSON at runtime, so the package does **not** need to be installed as a dependency of your Backstage app.
+- `package` — the name of a published `@iconify-json/*` package (optionally with a subpath). These are resolved against the [unpkg](https://unpkg.com) CDN. For other/custom/internal domains, `http(s)://` URLs are resolved directly. Either way, this is fetched as JSON at runtime, so the package does **not** need to be installed as a dependency of your Backstage app.
 
 ```yaml
 # app-config.yaml
@@ -246,10 +246,6 @@ techdocs:
         - name: hosted
           package: 'https://example.com/icons/my-icons.json'
 ```
-
-No code changes are needed beyond the standard module registration shown in
-the [Getting Started](#getting-started) section — the addon reads the
-configuration automatically at runtime.
 
 > **Note:** Because the `package` field is fetched from a public CDN at request time rather than pinned as a versioned dependency, its content isn't reviewed or locked the way an installed npm package would be. Prefer inline `icons` for anything sensitive, or a `package`/URL you control and trust.
 
